@@ -1,6 +1,6 @@
 # 🛡️ Distributed API Rate Limiter
 
-> **Handles 15k+ req/sec with P99 latency < 3ms on a single-node setup. Designed to protect high-traffic APIs, login endpoints, and multi-tenant SaaS systems from abuse.**
+> **Handles 9.5k+ req/sec with P99 latency < 12ms on a single-node setup. Designed to protect high-traffic APIs, login endpoints, and multi-tenant SaaS systems from abuse.**
 
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.5-blue?style=flat-square&logo=typescript)](https://www.typescriptlang.org/)
 [![Redis](https://img.shields.io/badge/Redis-7.0-red?style=flat-square&logo=redis)](https://redis.io/)
@@ -44,10 +44,11 @@ In a production environment, the rate limiter must not become a single point of 
 
 ## 📊 Scalability & Bottlenecks
 
-### Current Performance
-*   **Throughput**: 15k+ req/sec (Single Redis Node)
-*   **P95 Latency**: 1.2ms
-*   **P99 Latency**: 2.8ms
+### Current Performance (Verified)
+*   **Throughput**: 9.5k+ req/sec
+*   **P95 Latency**: 8.0ms
+*   **P99 Latency**: 11.6ms
+*   **Full Report**: See [BENCHMARKS.md](./BENCHMARKS.md)
 
 ### Scaling to the Next Level
 While the current single-node setup is highly performant, the bottleneck is the Redis CPU (due to Lua execution).
