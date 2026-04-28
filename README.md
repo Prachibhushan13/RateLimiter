@@ -18,7 +18,7 @@
 
 ---
 
-## 🏗️ Architecture Overview
+## 🏗️ Architecture & System Design
 
 ```mermaid
 graph TD
@@ -30,6 +30,20 @@ graph TD
     Redis -- Pub/Sub Events --> Dashboard[Next.js Monitoring]
     API1 -- Runtime Config --> Redis
 ```
+
+### Why Redis Lua for Atomicity?
+In a distributed environment, a standard `GET -> IF -> SET` pattern is vulnerable to race conditions. Two requests hitting different API nodes simultaneously could both read a token count of 1 and both proceed, exceeding the limit. 
+*   **Decision**: I chose **Redis Lua scripts** because Redis executes them as a single atomic operation. 
+*   **Trade-off**: This increases Redis CPU usage slightly compared to simple increments, but it guarantees 100% accuracy without the complexity of distributed locks (Redlock).
+
+### Algorithm Selection: When to use which?
+*   **Token Bucket**: I implemented this as the default because it allows for "burstiness"—a user can save up quota and use it all at once. This is the best "user-friendly" experience.
+*   **Sliding Window**: Chosen for high-precision needs. It eliminates the "boundary problem" where a user could double their quota by hitting the API at the end of one window and the start of another.
+*   **Fixed Window**: Included for high-throughput telemetry or logging where slight inaccuracies at window boundaries are acceptable in exchange for maximum performance.
+
+### Fail-Open vs. Fail-Closed
+*   **Decision**: The middleware is configured to **Fail-Open**. 
+*   **Reasoning**: In a production SaaS environment, it is usually better to allow a few extra requests through during a Redis outage than to bring down your entire login system because the rate-limiter is down.
 
 ---
 

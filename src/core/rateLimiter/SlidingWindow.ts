@@ -23,7 +23,15 @@ export class SlidingWindow extends RateLimiter {
     const limit = this.config.limit;
     const windowMs = (this.config.windowSeconds ?? 60) * 1000;
     const now = Date.now();
+    const windowStart = now - windowMs;
 
+    /**
+     * PRECISION VS MEMORY:
+     * We use a Redis Sorted Set (ZSET) to store a timestamp for every single request.
+     * While this is the most accurate algorithm (no boundary spikes), it is memory-intensive.
+     * To keep the system 'battle-tested', we prune old timestamps on every check to keep 
+     * the ZSET size proportional only to the current limit.
+     */
     const result = (await evalScript('slidingWindow', [key], [
       limit,
       windowMs,

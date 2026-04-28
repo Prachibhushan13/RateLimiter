@@ -16,7 +16,11 @@ import { getRedisClient } from '../../redis/client';
 export class TokenBucket extends RateLimiter {
   constructor(config: RateLimitConfig) {
     super(config);
-    // Initialize defaults if not provided
+    /**
+     * Why Lazy Refill?
+     * Instead of having a background timer adding tokens (which is hard to scale and consumes CPU),
+     * we calculate how many tokens should have been added since the last request.
+     */
     this.config.tokenCapacity = this.config.tokenCapacity ?? this.config.limit;
     this.config.refillRate = this.config.refillRate ?? (this.config.limit / (this.config.windowSeconds || 60));
   }
@@ -29,8 +33,10 @@ export class TokenBucket extends RateLimiter {
     const requested = 1;
 
     /**
-     * ATOMICITY: We use a Lua script to ensure that the read-modify-write cycle
-     * happens in a single Redis operation, preventing race conditions.
+     * ATOMICITY IS KEY:
+     * In a distributed environment, the Read-Modify-Write cycle must be atomic.
+     * We offload this entire logic to Redis Lua to prevent race conditions 
+     * where two concurrent requests could both see 1 token remaining.
      */
     const result = (await evalScript('tokenBucket', [key], [
       capacity,
