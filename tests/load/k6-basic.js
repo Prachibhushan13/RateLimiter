@@ -30,8 +30,13 @@ export default function () {
   check(res, {
     'status is 200 or 429': (r) => r.status === 200 || r.status === 429,
     'response has allowed field': (r) => {
-      const body = JSON.parse(r.body);
-      return body.allowed !== undefined;
+      try {
+        if (!r.body) return false;
+        const body = JSON.parse(r.body);
+        return body && body.allowed !== undefined;
+      } catch (e) {
+        return false;
+      }
     },
     'response under 50ms': (r) => r.timings.duration < 50,
     'has rate limit headers': (r) => r.headers['X-Ratelimit-Limit'] !== undefined,
