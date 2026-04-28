@@ -5,30 +5,33 @@ import { tokenBucketKey } from '../../redis/keyBuilder';
 import { getRedisClient } from '../../redis/client';
 
 /**
- * Token Bucket rate limiter.
- *
- * Tokens refill at a constant rate up to a max capacity.
- * Each request consumes one token. Empty bucket → rejected.
+ * Token Bucket Algorithm:
+ * - Each client has a bucket of tokens with a fixed capacity.
+ * - Tokens refill at a constant rate (refillRate) until capacity is reached.
+ * - Each request consumes 1 token.
+ * - If the bucket is empty, the request is throttled.
+ * 
+ * Pros: Allows for short bursts of traffic while maintaining a steady long-term rate.
  */
 export class TokenBucket extends RateLimiter {
   constructor(config: RateLimitConfig) {
     super(config);
-    // Ensure token-specific defaults
-    if (!this.config.tokenCapacity) {
-      this.config.tokenCapacity = this.config.limit;
-    }
-    if (!this.config.refillRate) {
-      this.config.refillRate = 10; // tokens per second
-    }
+    // Initialize defaults if not provided
+    this.config.tokenCapacity = this.config.tokenCapacity ?? this.config.limit;
+    this.config.refillRate = this.config.refillRate ?? (this.config.limit / (this.config.windowSeconds || 60));
   }
 
   async check(clientId: string, route: string): Promise<RateLimitResult> {
     const key = tokenBucketKey(clientId, route);
-    const capacity = this.config.tokenCapacity ?? this.config.limit;
-    const refillRatePerMs = (this.config.refillRate ?? 10) / 1000; // Convert tokens/sec → tokens/ms
+    const capacity = this.config.tokenCapacity!;
+    const refillRatePerMs = this.config.refillRate! / 1000;
     const now = Date.now();
     const requested = 1;
 
+    /**
+     * ATOMICITY: We use a Lua script to ensure that the read-modify-write cycle
+     * happens in a single Redis operation, preventing race conditions.
+     */
     const result = (await evalScript('tokenBucket', [key], [
       capacity,
       refillRatePerMs,
@@ -38,23 +41,20 @@ export class TokenBucket extends RateLimiter {
 
     const allowed = result[0] === 1;
     const remaining = result[1];
-    const refillRatePerSec = this.config.refillRate ?? 10;
+    const refillRatePerSec = this.config.refillRate!;
 
-    // Calculate time until full refill from current remaining
-    const tokensNeeded = capacity - remaining;
-    const resetAt =
-      tokensNeeded > 0 ? now + Math.ceil((tokensNeeded / refillRatePerSec) * 1000) : now;
-
-    const retryAfter = allowed
-      ? undefined
-      : Math.ceil((1 / refillRatePerSec) * 1); // Seconds until at least 1 token
+    // Math: How many tokens are missing? How long until they refill?
+    const tokensMissing = capacity - remaining;
+    const resetAt = tokensMissing > 0 
+      ? now + Math.ceil((tokensMissing / refillRatePerSec) * 1000) 
+      : now;
 
     return {
       allowed,
       remaining,
       limit: capacity,
       resetAt,
-      retryAfter,
+      retryAfter: allowed ? undefined : Math.ceil(1 / refillRatePerSec),
       algorithm: Algorithm.TOKEN_BUCKET,
       clientId,
       route,
@@ -63,24 +63,20 @@ export class TokenBucket extends RateLimiter {
 
   async reset(clientId: string, route: string): Promise<void> {
     const key = tokenBucketKey(clientId, route);
-    const redis = getRedisClient();
-    await redis.del(key);
+    await getRedisClient().del(key);
   }
 
   async getQuota(clientId: string, route: string): Promise<Record<string, unknown>> {
     const key = tokenBucketKey(clientId, route);
-    const redis = getRedisClient();
-    const data = await redis.hgetall(key);
+    const data = await getRedisClient().hgetall(key);
 
-    const capacity = this.config.tokenCapacity ?? this.config.limit;
-    const tokens = data.tokens !== undefined ? Number(data.tokens) : capacity;
-    const lastRefill = data.lastRefill !== undefined ? Number(data.lastRefill) : Date.now();
-
+    const capacity = this.config.tokenCapacity!;
     return {
-      tokens,
+      tokens: data.tokens !== undefined ? Number(data.tokens) : capacity,
       capacity,
-      refillRate: this.config.refillRate ?? 10,
-      lastRefill,
+      refillRate: this.config.refillRate,
+      lastRefill: data.lastRefill !== undefined ? Number(data.lastRefill) : Date.now(),
     };
   }
 }
+

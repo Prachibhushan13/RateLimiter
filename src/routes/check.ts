@@ -127,8 +127,15 @@ router.post('/check', async (req: Request, res: Response) => {
     }
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
-    logger.error('Error processing rate limit check', { error: message });
-    res.status(500).json({ error: 'Internal server error' });
+    logger.error('Rate Limiter Error (Fail-Open triggered)', { error: message });
+    
+    // FAIL-OPEN: If Redis is down, we allow the request to prevent cascading failure
+    res.status(200).json({
+      allowed: true,
+      remaining: 0,
+      limit: 0,
+      message: 'Rate limiting temporarily unavailable (Fail-Open active)',
+    });
   }
 });
 
@@ -143,9 +150,9 @@ router.get('/test', async (req: Request, res: Response) => {
     const route = '/api/test';
 
     const limiterConfig = {
-      algorithm: Algorithm.FIXED_WINDOW,
-      limit: 5, // Hardcoded to 5 for easy demo
-      windowSeconds: 60,
+      algorithm: config.DEFAULT_ALGORITHM as Algorithm,
+      limit: config.DEFAULT_LIMIT,
+      windowSeconds: config.DEFAULT_WINDOW_SECONDS,
     };
 
     const limiter = getOrCreateRateLimiter(limiterConfig);
