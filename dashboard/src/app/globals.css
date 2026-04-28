@@ -1,0 +1,78 @@
+@import "tailwindcss";
+
+:root {
+  --bg-primary: #0a0a0f;
+  --bg-secondary: #12121a;
+  --bg-card: #1a1a2e;
+  --bg-card-hover: #1f1f35;
+  --border: #2a2a3e;
+  --text-primary: #e4e4f0;
+  --text-secondary: #9898b0;
+  --text-muted: #6a6a80;
+  --accent-green: #00e676;
+  --accent-red: #ff5252;
+  --accent-blue: #448aff;
+  --accent-purple: #b388ff;
+  --accent-yellow: #ffd740;
+}
+
+/* SOLID LAYOUT CLASSES (Guaranteed to work) */
+.dashboard-container {
+  display: flex;
+  min-height: 100vh;
+  background: var(--bg-primary);
+}
+
+.sidebar-fixed {
+  position: fixed;
+  left: 0;
+  top: 0;
+  height: 100vh;
+  width: 256px;
+  background: var(--bg-secondary);
+  border-right: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  z-index: 50;
+}
+
+.main-content {
+  flex: 1;
+  margin-left: 256px;
+  padding: 32px;
+  min-height: 100vh;
+}
+
+.card-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 20px;
+  margin-bottom: 32px;
+}
+
+.stat-card {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 20px;
+  transition: all 0.3s ease;
+}
+
+.stat-card:hover {
+  transform: translateY(-2px);
+  background: var(--bg-card-hover);
+}
+
+/* Standard resets */
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+body {
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  font-family: 'Inter', system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased;
+}

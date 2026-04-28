@@ -1,0 +1,56 @@
+version: '3.8'
+
+services:
+  redis:
+    image: redis:7.0-alpine
+    container_name: ratelimiter-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    command: redis-server --maxmemory 512mb --maxmemory-policy allkeys-lru --appendonly no
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+    restart: unless-stopped
+
+  rate-limiter:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: ratelimiter-api
+    ports:
+      - "3000:3000"
+    environment:
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - NODE_ENV=production
+      - PORT=3000
+      - LOG_LEVEL=info
+      - DEFAULT_ALGORITHM=token_bucket
+      - DEFAULT_LIMIT=100
+      - DEFAULT_WINDOW_SECONDS=60
+      - DEFAULT_TOKEN_CAPACITY=100
+      - DEFAULT_REFILL_RATE=10
+      - ADMIN_API_KEY=change-me-in-production
+    depends_on:
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+
+  dashboard:
+    build:
+      context: ./dashboard
+      dockerfile: Dockerfile
+    container_name: ratelimiter-dashboard
+    ports:
+      - "3001:3000"
+    environment:
+      - NEXT_PUBLIC_API_URL=http://rate-limiter:3000
+    depends_on:
+      - rate-limiter
+
+volumes:
+  redis_data:
